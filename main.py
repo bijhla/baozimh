@@ -4,7 +4,10 @@ from gui import create_main_layout
 from task_manager import TaskManager
 from utils import windows_asyncio_fix, setup_logger, sanitize_filename
 import asyncio
-from downloader import search_baozimh, get_chapter_list, close_session
+from downloader import (
+    search_baozimh, get_chapter_list, close_session,
+    get_all_mirrors, add_mirror, set_mirror_source, get_current_mirror, remove_mirror
+)
 import os
 
 
@@ -17,12 +20,10 @@ windows_asyncio_fix()
 # 定义颜色 (这些应该和 gui.py 中的一致)
 text_color = "white"
 bg_color = "#1B1D20"
-button_bg_color = "#595959"
 input_bg_color = "#2B2D30"
 
 sg.theme_background_color(bg_color)
 sg.theme_text_color(text_color)
-sg.theme_button_color((text_color, button_bg_color))
 sg.theme_input_background_color(input_bg_color)
 sg.theme_input_text_color(text_color)
 sg.theme_element_text_color(text_color)
@@ -64,6 +65,74 @@ def update_task_lists():
     window["-COMPLETED-"].update(values=completed_data)
     window["-ERROR-"].update(values=error_data)
 
+def show_mirror_selection():
+    """显示镜像源选择窗口"""
+    mirrors = get_all_mirrors()
+    current = get_current_mirror()
+    
+    layout = [
+        [sg.Text("选择镜像源", font=("微软雅黑", 12), background_color=bg_color)],
+        [sg.Listbox(
+            values=[f"{k}: {v['name']} ({v['base_url']})" for k, v in mirrors.items()],
+            size=(50, 10),
+            key="-MIRROR_LIST-",
+            default_values=[f"{current['name']} ({current['base_url']})"]
+        )],
+        [sg.Button("确定"), sg.Button("取消")]
+    ]
+    
+    window = sg.Window("选择镜像源", layout, modal=True, background_color=bg_color)
+    
+    while True:
+        event, values = window.read()
+        if event in (sg.WIN_CLOSED, "取消"):
+            break
+        if event == "确定" and values["-MIRROR_LIST-"]:
+            selected = values["-MIRROR_LIST-"][0]
+            key = selected.split(":")[0]
+            success, msg = set_mirror_source(key)
+            if success:
+                sg.popup(msg, title="成功")
+            else:
+                sg.popup(msg, title="错误")
+            break
+    
+    window.close()
+
+def show_add_mirror():
+    """显示添加镜像源窗口"""
+    layout = [
+        [sg.Text("添加新镜像源", font=("微软雅黑", 12))],
+        [sg.Text("标识:"), sg.Input(key="-MIRROR_KEY-")],
+        [sg.Text("名称:"), sg.Input(key="-MIRROR_NAME-")],
+        [sg.Text("网址:"), sg.Input(key="-MIRROR_URL-")],
+        [sg.Text("CDN模式:"), sg.Input(key="-MIRROR_CDN-", default_text="baozicdn.com")],
+        [sg.Button("添加"), sg.Button("取消")]
+    ]
+    
+    window = sg.Window("添加镜像源", layout, modal=True)
+    
+    while True:
+        event, values = window.read()
+        if event in (sg.WIN_CLOSED, "取消"):
+            break
+        if event == "添加":
+            key = values["-MIRROR_KEY-"].strip()
+            name = values["-MIRROR_NAME-"].strip()
+            url = values["-MIRROR_URL-"].strip()
+            cdn = values["-MIRROR_CDN-"].strip()
+            
+            if not all([key, name, url]):
+                sg.popup("所有字段都必须填写！", title="错误")
+                continue
+                
+            success, msg = add_mirror(key, name, url, cdn)
+            sg.popup(msg, title="成功" if success else "错误")
+            if success:
+                break
+    
+    window.close()
+
 async def main_loop():  # 将主循环改为异步函数
     # 事件循环
     while True:
@@ -73,7 +142,13 @@ async def main_loop():  # 将主循环改为异步函数
             logger.info("程序退出")
             break
 
-        if event == "-SEARCH_BTN-":
+        elif event == "-SELECT_MIRROR-":
+            show_mirror_selection()
+
+        elif event == "-ADD_MIRROR-":
+            show_add_mirror()
+
+        elif event == "-SEARCH_BTN-":
             keyword = values["-SEARCH-"]
             if keyword:
                 # 使用无 UI 版本的 search_baozimh 函数

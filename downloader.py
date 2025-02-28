@@ -5,12 +5,111 @@ import requests
 from bs4 import BeautifulSoup
 import os
 import re
+import json
 from utils import sanitize_filename, setup_logger, MAX_CONCURRENT_DOWNLOADS
 import aiofiles
 import random
 
 # 获取 logger 实例
 logger = setup_logger(__name__)
+
+# 镜像源配置文件路径
+MIRRORS_CONFIG_FILE = "mirrors.json"
+
+# 默认镜像源配置
+DEFAULT_MIRRORS = {
+    "default": {
+        "name": "默认源",
+        "base_url": "https://www.baozimh.com",
+        "cdn_pattern": "baozicdn.com"
+    },
+    "cn_mirror": {
+        "name": "中国镜像",
+        "base_url": "https://cn.bzmanga.com",
+        "cdn_pattern": "baozicdn.com"
+    }
+}
+
+# 当前使用的镜像源
+current_source = "default"
+
+def load_mirrors():
+    """加载镜像源配置"""
+    try:
+        if os.path.exists(MIRRORS_CONFIG_FILE):
+            with open(MIRRORS_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            # 如果配置文件不存在，使用默认配置并保存
+            save_mirrors(DEFAULT_MIRRORS)
+            return DEFAULT_MIRRORS
+    except Exception as e:
+        logger.error(f"加载镜像源配置失败: {e}")
+        return DEFAULT_MIRRORS
+
+def save_mirrors(mirrors):
+    """保存镜像源配置"""
+    try:
+        with open(MIRRORS_CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(mirrors, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logger.error(f"保存镜像源配置失败: {e}")
+
+def get_all_mirrors():
+    """获取所有可用的镜像源"""
+    return load_mirrors()
+
+def add_mirror(key, name, base_url, cdn_pattern="baozicdn.com"):
+    """添加新的镜像源"""
+    mirrors = load_mirrors()
+    if key in mirrors:
+        return False, "镜像源标识已存在"
+    
+    # 验证URL格式
+    if not base_url.startswith(('http://', 'https://')):
+        return False, "URL必须以http://或https://开头"
+    
+    mirrors[key] = {
+        "name": name,
+        "base_url": base_url.rstrip('/'),  # 移除末尾的斜杠
+        "cdn_pattern": cdn_pattern
+    }
+    save_mirrors(mirrors)
+    return True, "添加成功"
+
+def remove_mirror(key):
+    """删除镜像源"""
+    if key == "default":
+        return False, "不能删除默认镜像源"
+    
+    mirrors = load_mirrors()
+    if key in mirrors:
+        del mirrors[key]
+        save_mirrors(mirrors)
+        return True, "删除成功"
+    return False, "镜像源不存在"
+
+def set_mirror_source(source_key):
+    """设置当前使用的镜像源"""
+    global current_source
+    mirrors = load_mirrors()
+    if source_key in mirrors:
+        current_source = source_key
+        logger.info(f"已切换到镜像源: {mirrors[source_key]['name']}")
+        return True, f"已切换到: {mirrors[source_key]['name']}"
+    return False, "镜像源不存在"
+
+def get_current_mirror():
+    """获取当前镜像源信息"""
+    mirrors = load_mirrors()
+    return mirrors.get(current_source, DEFAULT_MIRRORS["default"])
+
+def get_base_url():
+    """获取当前镜像源的基础URL"""
+    return get_current_mirror()["base_url"]
+
+# 初始化：加载镜像源配置
+MIRROR_SOURCES = load_mirrors()
 
 # 限制并发下载数量
 # semaphore = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)  # 不需要了
@@ -111,9 +210,10 @@ async def download_images_async(img_links, download_folder, progress_callback=No
 
 # --- 以下是原 no_ui_version.py 中的函数 --- (这些函数保持不变) ---
 def search_baozimh(keyword):
-    """在 baozimh.com 上搜索漫画并返回结果 (同步函数)"""
+    """在漫画网站上搜索漫画并返回结果 (同步函数)"""
     logger.info(f"搜索漫画: {keyword}")
-    search_url = "https://www.baozimh.com/search"
+    base_url = get_base_url()
+    search_url = f"{base_url}/search"
     params = {"q": keyword}
 
     try:
@@ -126,7 +226,7 @@ def search_baozimh(keyword):
         results = []
         for item in comic_items:
             title = item["title"] if item.has_attr("title") else "标题未找到"
-            comic_url = "https://www.baozimh.com" + item["href"] if item.has_attr("href") else None
+            comic_url = base_url + item["href"] if item.has_attr("href") else None
 
             if title and comic_url:
                 results.append({"title": title, "url": comic_url})
@@ -146,6 +246,8 @@ def search_baozimh(keyword):
 def get_chapter_list(comic_url):
     """从漫画详情页获取章节列表 (同步函数)"""
     logger.info(f"获取章节列表: {comic_url}")
+    base_url = get_base_url()
+    
     try:
         response = requests.get(comic_url)
         response.raise_for_status()
@@ -157,7 +259,7 @@ def get_chapter_list(comic_url):
         if chapter_items1:
             chapter_items1 = chapter_items1.find_all("a", class_="comics-chapters__item")
             for item in chapter_items1:
-                chapter_url = "https://www.baozimh.com" + item["href"]
+                chapter_url = base_url + item["href"]
                 chapter_name = item.find("span").text.strip()
                 chapters.append({"name": chapter_name, "url": chapter_url})
                 logger.debug(f"找到章节: {chapter_name}, URL: {chapter_url}")
@@ -166,7 +268,7 @@ def get_chapter_list(comic_url):
         if chapter_items2:
             chapter_items2 = chapter_items2.find_all("a", class_="comics-chapters__item")
             for item in chapter_items2:
-                chapter_url = "https://www.baozimh.com" + item["href"]
+                chapter_url = base_url + item["href"]
                 span = item.find("span")
                 if span:
                     chapter_name = span.text.strip()
