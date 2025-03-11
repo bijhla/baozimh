@@ -140,7 +140,7 @@ async def fetch(url, headers):  # 简化 fetch，不再需要传入 session
         response.raise_for_status()
         return await response.read()
 
-async def download_image(img_link, download_folder, i, headers, progress_callback=None, retry=3):
+async def download_image(img_link, download_folder, i, headers, progress_callback=None, retry=2):
     """异步下载单张图片"""
     file_name = os.path.join(download_folder, f"image_{i + 1}.jpg")
 
@@ -198,13 +198,24 @@ async def download_images_async(img_links, download_folder, progress_callback=No
     if not os.path.exists(download_folder):
         os.makedirs(download_folder)
 
-    # 直接使用传入的 img_links 创建下载任务
+    # 使用信号量控制并发数量为2
+    semaphore = asyncio.Semaphore(2)
+    
+    async def download_with_semaphore(img_link, i):
+        async with semaphore:
+            return await download_image(img_link, download_folder, i, headers, progress_callback)
+    
+    # 创建下载任务
     tasks = [
-       asyncio.create_task(download_image(img_link, download_folder, i, headers, progress_callback))
+       asyncio.create_task(download_with_semaphore(img_link, i))
        for i, img_link in enumerate(img_links)
     ]
-    # 不再有外层的 asyncio.wait, 直接等待内层任务
-    await asyncio.gather(*tasks, return_exceptions=True) # 使用 gather 并且 return_exceptions=True
+    
+    # 添加一个小的延迟，确保任务能开始执行
+    await asyncio.sleep(0.1)
+    
+    # 等待所有任务完成
+    await asyncio.gather(*tasks, return_exceptions=True)
     logger.info(f"下载完成 (或发生错误/取消): {download_folder}")
 
 

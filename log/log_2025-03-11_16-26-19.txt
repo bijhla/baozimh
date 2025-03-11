@@ -1,0 +1,4 @@
+2025-03-11 16:26:19,848 - INFO - utils.py:65 - cleanup_logs - 已删除旧的日志文件: log\log_2025-02-28_09-10-55.txt
+2025-03-11 16:26:27,356 - INFO - downloader.py:98 - set_mirror_source - 已切换到镜像源: 中国镜像
+2025-03-11 16:26:51,972 - INFO - downloader.py:98 - set_mirror_source - 已切换到镜像源: 1
+2025-03-11 16:26:56,643 - INFO - main.py:142 - main_loop - 程序退出

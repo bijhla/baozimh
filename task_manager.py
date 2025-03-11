@@ -18,7 +18,7 @@ class TaskManager:
         # self.cancelled_tasks = [] # 如果需要跟踪被取消的任务，可以启用
         self.gui_update_callback = gui_update_callback
         # self.load_progress()  # 初始加载也移除，按需加载
-        self.max_concurrent_downloads = 1  # 严格限制为 1
+        self.max_concurrent_downloads = 2  # 严格限制为 2
         self.download_tasks = {}  # 使用字典来存储所有创建的 asyncio.Task
 
 
@@ -73,6 +73,10 @@ class TaskManager:
 
                     if self.gui_update_callback:
                         self.gui_update_callback()
+                    
+                    # 添加一个小的延迟，确保前一个任务的资源已经释放
+                    await asyncio.sleep(0.5)
+                    
                     # 使用 asyncio.create_task 启动下载, 并保存 task 对象
                     download_task = asyncio.create_task(self.run_task(task))
                     self.download_tasks[task['chapter_url']] = download_task

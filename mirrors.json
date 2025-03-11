@@ -8,5 +8,10 @@
         "name": "中国镜像",
         "base_url": "https://cn.bzmanga.com",
         "cdn_pattern": "baozicdn.com"
+    },
+    "1": {
+        "name": "1",
+        "base_url": "http://s.com",
+        "cdn_pattern": "baozicdn.com"
     }
 }

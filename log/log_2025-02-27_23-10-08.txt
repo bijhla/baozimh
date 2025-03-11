@@ -1,2 +1,0 @@
-2025-02-27 23:10:08,239 - INFO - utils.py:65 - cleanup_logs - 已删除旧的日志文件: log\log_2025-02-27_20-48-01.txt
-2025-02-27 23:10:10,764 - INFO - main.py:73 - main_loop - 程序退出

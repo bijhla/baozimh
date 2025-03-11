@@ -92,9 +92,9 @@ def show_mirror_selection():
             key = selected.split(":")[0]
             success, msg = set_mirror_source(key)
             if success:
-                sg.popup(msg, title="成功")
+                sg.popup(msg, title="成功", background_color=bg_color)
             else:
-                sg.popup(msg, title="错误")
+                sg.popup(msg, title="错误", background_color=bg_color)
             break
     
     window.close()
@@ -243,8 +243,8 @@ async def main_loop():  # 将主循环改为异步函数
                         logger.info(f"任务已存在，跳过添加: {chapter['name']}")
         elif event == "-DOWNLOADING-":  # 处理下载列表点击事件
             selected_index = window["-DOWNLOADING-"].get_indexes()
-            # 可以在这里做一些事情，例如更新按钮状态
-            window["-CANCEL-"].update(disabled=not selected_index)
+            # 不再允许取消正在下载的任务
+            window["-CANCEL-"].update(disabled=True)
 
         elif event == "-WAITING-":  # 处理等待列表点击事件
             selected_index = window["-WAITING-"].get_indexes()
@@ -253,22 +253,14 @@ async def main_loop():  # 将主循环改为异步函数
             window["-MOVE_DOWN-"].update(disabled=not selected_index)
             window["-MOVE_TOP-"].update(disabled=not selected_index)
             window["-MOVE_BOTTOM-"].update(disabled=not selected_index)
-            window["-CANCEL-"].update(disabled=not selected_index and len(window["-DOWNLOADING-"].get_indexes()) == 0)
+            window["-CANCEL-"].update(disabled=not selected_index)  # 只有选中等待任务时才能取消
 
 
         elif event == "-CANCEL-":
-            # 优先从 downloading_tasks 取消
-            selected_index = window["-DOWNLOADING-"].get_indexes()
+            # 只从等待队列中取消任务
+            selected_index = window["-WAITING-"].get_indexes()
             if selected_index:
-                task_to_cancel = task_manager.downloading_tasks[selected_index[0]]
-            else:  # 如果 downloading_tasks 没有选中，再尝试从 waiting_tasks 取消
-                selected_index = window["-WAITING-"].get_indexes()
-                if selected_index:
-                    task_to_cancel = task_manager.waiting_tasks[selected_index[0]]
-                else:
-                    task_to_cancel = None
-
-            if task_to_cancel:
+                task_to_cancel = task_manager.waiting_tasks[selected_index[0]]
                 await task_manager.cancel_task(task_to_cancel)
 
         elif event.startswith("-MOVE_"):
@@ -286,9 +278,8 @@ async def main_loop():  # 将主循环改为异步函数
 
             # 简化按钮状态更新逻辑
             waiting_selected = len(window["-WAITING-"].get_indexes()) > 0
-            downloading_selected = len(window["-DOWNLOADING-"].get_indexes()) > 0
-
-            window["-CANCEL-"].update(disabled=not (waiting_selected or downloading_selected))
+            
+            window["-CANCEL-"].update(disabled=not waiting_selected)  # 只有选中等待任务时才能取消
             window["-MOVE_UP-"].update(disabled=not waiting_selected)
             window["-MOVE_DOWN-"].update(disabled=not waiting_selected)
             window["-MOVE_TOP-"].update(disabled=not waiting_selected)
