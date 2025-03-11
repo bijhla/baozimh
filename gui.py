@@ -22,6 +22,7 @@ def create_main_layout():
             sg.Text("镜像源", size=(8, 1), text_color=text_color, background_color=bg_color),
             sg.Button("选择镜像", key="-SELECT_MIRROR-"),
             sg.Button("添加镜像", key="-ADD_MIRROR-"),
+            sg.Text("", key="-CURRENT_MIRROR-", text_color=text_color, background_color=bg_color, size=(20, 1)),
         ],
         [
             sg.Text("漫画名", size=(8, 1), text_color=text_color, background_color=bg_color),

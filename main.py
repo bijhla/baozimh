@@ -40,6 +40,10 @@ task_manager = TaskManager(
     gui_update_callback=lambda: window.write_event_value("-UPDATE_LISTS-", "")
 )
 
+# 显示当前镜像源
+current_mirror = get_current_mirror()
+window["-CURRENT_MIRROR-"].update(f"当前镜像源: {current_mirror['name']}")
+
 # 搜索到的漫画结果
 search_results = []
 selected_comic = None
@@ -144,6 +148,9 @@ async def main_loop():  # 将主循环改为异步函数
 
         elif event == "-SELECT_MIRROR-":
             show_mirror_selection()
+            # 更新当前镜像源显示
+            current_mirror = get_current_mirror()
+            window["-CURRENT_MIRROR-"].update(f"当前镜像源: {current_mirror['name']}")
 
         elif event == "-ADD_MIRROR-":
             show_add_mirror()
@@ -242,22 +249,56 @@ async def main_loop():  # 将主循环改为异步函数
                     else:
                         logger.info(f"任务已存在，跳过添加: {chapter['name']}")
         elif event == "-DOWNLOADING-":  # 处理下载列表点击事件
-            selected_index = window["-DOWNLOADING-"].get_indexes()
-            # 不再允许取消正在下载的任务
+            # 清除其他列表的选择
+            window["-WAITING-"].update(set_to_index=[])
+            window["-COMPLETED-"].update(set_to_index=[])
+            window["-ERROR-"].update(set_to_index=[])
+            # 禁用所有操作按钮
             window["-CANCEL-"].update(disabled=True)
+            window["-MOVE_UP-"].update(disabled=True)
+            window["-MOVE_DOWN-"].update(disabled=True)
+            window["-MOVE_TOP-"].update(disabled=True)
+            window["-MOVE_BOTTOM-"].update(disabled=True)
 
         elif event == "-WAITING-":  # 处理等待列表点击事件
+            # 清除其他列表的选择
+            window["-DOWNLOADING-"].update(set_to_index=[])
+            window["-COMPLETED-"].update(set_to_index=[])
+            window["-ERROR-"].update(set_to_index=[])
             selected_index = window["-WAITING-"].get_indexes()
-            # 更新移动按钮和取消按钮的状态
+            # 只有选中等待任务时才启用相关按钮
+            window["-CANCEL-"].update(disabled=not selected_index)
             window["-MOVE_UP-"].update(disabled=not selected_index)
             window["-MOVE_DOWN-"].update(disabled=not selected_index)
             window["-MOVE_TOP-"].update(disabled=not selected_index)
             window["-MOVE_BOTTOM-"].update(disabled=not selected_index)
-            window["-CANCEL-"].update(disabled=not selected_index)  # 只有选中等待任务时才能取消
 
+        elif event == "-COMPLETED-":  # 处理完成列表点击事件
+            # 清除其他列表的选择
+            window["-DOWNLOADING-"].update(set_to_index=[])
+            window["-WAITING-"].update(set_to_index=[])
+            window["-ERROR-"].update(set_to_index=[])
+            # 禁用所有操作按钮
+            window["-CANCEL-"].update(disabled=True)
+            window["-MOVE_UP-"].update(disabled=True)
+            window["-MOVE_DOWN-"].update(disabled=True)
+            window["-MOVE_TOP-"].update(disabled=True)
+            window["-MOVE_BOTTOM-"].update(disabled=True)
+
+        elif event == "-ERROR-":  # 处理错误列表点击事件
+            # 清除其他列表的选择
+            window["-DOWNLOADING-"].update(set_to_index=[])
+            window["-WAITING-"].update(set_to_index=[])
+            window["-COMPLETED-"].update(set_to_index=[])
+            # 禁用所有操作按钮
+            window["-CANCEL-"].update(disabled=True)
+            window["-MOVE_UP-"].update(disabled=True)
+            window["-MOVE_DOWN-"].update(disabled=True)
+            window["-MOVE_TOP-"].update(disabled=True)
+            window["-MOVE_BOTTOM-"].update(disabled=True)
 
         elif event == "-CANCEL-":
-            # 只从等待队列中取消任务
+            # 只从 waiting_tasks 取消
             selected_index = window["-WAITING-"].get_indexes()
             if selected_index:
                 task_to_cancel = task_manager.waiting_tasks[selected_index[0]]
@@ -278,8 +319,9 @@ async def main_loop():  # 将主循环改为异步函数
 
             # 简化按钮状态更新逻辑
             waiting_selected = len(window["-WAITING-"].get_indexes()) > 0
-            
-            window["-CANCEL-"].update(disabled=not waiting_selected)  # 只有选中等待任务时才能取消
+            downloading_selected = len(window["-DOWNLOADING-"].get_indexes()) > 0
+
+            window["-CANCEL-"].update(disabled=not (waiting_selected or downloading_selected))
             window["-MOVE_UP-"].update(disabled=not waiting_selected)
             window["-MOVE_DOWN-"].update(disabled=not waiting_selected)
             window["-MOVE_TOP-"].update(disabled=not waiting_selected)
